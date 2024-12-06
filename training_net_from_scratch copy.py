@@ -5,7 +5,6 @@ import keras
 import matplotlib.pyplot as plt
 from keras.preprocessing import image # type: ignore
 from keras.applications.imagenet_utils import preprocess_input # type: ignore
-from keras.models import Model # type: ignore
 from keras.models import Sequential # type: ignore
 from keras.layers import Dense, Dropout, Flatten, Activation # type: ignore
 from keras.layers import Conv2D, MaxPooling2D # type: ignore
@@ -77,37 +76,66 @@ print("train / validation / test split: %d, %d, %d"%(len(x_train), len(x_val), l
 print("training data shape: ", x_train.shape)
 print("training labels shape: ", y_train.shape)
 
-vgg = keras.applications.VGG16(weights='imagenet', include_top=True)
+# build the network
+model = Sequential()
+model.add(Conv2D(32, (3, 3), input_shape=x_train.shape[1:]))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
 
-# make a reference to VGG's input layer
-inp = vgg.input
+model.add(Conv2D(32, (3, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
 
-# make a new softmax layer with num_classes neurons
-new_classification_layer = Dense(num_classes, activation='softmax')
+model.add(Dropout(0.25))
 
-# connect our new layer to the second to last layer in VGG, and make a reference to it
-out = new_classification_layer(vgg.layers[-2].output)
+model.add(Conv2D(32, (3, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
 
-# create a new network between inp and out
-model_new = Model(inp, out)
+model.add(Conv2D(32, (3, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
 
-# make all layers untrainable by freezing weights (except for last layer)
-for l, layer in enumerate(model_new.layers[:-1]):
-    layer.trainable = False
+model.add(Dropout(0.25))
 
-# ensure the last layer is trainable/not frozen
-for l, layer in enumerate(model_new.layers[-1:]):
-    layer.trainable = True
+model.add(Flatten())
+model.add(Dense(256))
+model.add(Activation('relu'))
 
-model_new.compile(loss='categorical_crossentropy',
+model.add(Dropout(0.5))
+
+model.add(Dense(num_classes))
+model.add(Activation('softmax'))
+
+# compile the model to use categorical cross-entropy loss function and adam optimizer
+model.compile(loss='categorical_crossentropy',
               optimizer='adam',
               metrics=['accuracy'])
 
-loss, accuracy = model_new.evaluate(x_test, y_test, verbose=0)
-img, x = get_image('101_ObjectCategories/airplanes/image_0003.jpg')
-probabilities = model_new.predict([x])
+history = model.fit(x_train, y_train,
+                    batch_size=128,
+                    epochs=10,
+                    validation_data=(x_val, y_val))
 
+# Plot the results
+fig = plt.figure(figsize=(16, 4))
+
+# Validation loss
+ax = fig.add_subplot(121)
+ax.plot(history.history["val_loss"])
+ax.set_title("Validation Loss")
+ax.set_xlabel("Epochs")
+
+# Validation accuracy
+ax2 = fig.add_subplot(122)
+ax2.plot(history.history["val_accuracy"])
+ax2.set_title("Validation Accuracy")
+ax2.set_xlabel("Epochs")
+ax2.set_ylim(0, 1)
+
+plt.show()
+
+# Evaluate on test set
+loss, accuracy = model.evaluate(x_test, y_test, verbose=0)
 print('Test loss:', loss)
 print('Test accuracy:', accuracy)
-print('Test probabilities:', probabilities)
-
