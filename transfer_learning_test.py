@@ -8,7 +8,14 @@ from keras.applications.imagenet_utils import preprocess_input
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten, Activation
 from keras.layers import Conv2D, MaxPooling2D
-from keras.models import Model
+
+# Getting a dataset
+# echo "Downloading 101_Object_Categories for image notebooks"
+# curl -L -o caltech-101.zip --progress-bar "https://data.caltech.edu/records/mzrjq-6wc02/files/caltech-101.zip?download=1"
+# unzip -o caltech-101.zip -d caltech-101
+# tar -xzf caltech-101/caltech-101/101_ObjectCategories.tar.gz
+# rm -rf caltech-101.zip caltech-101
+# ls
 
 root = '101_ObjectCategories'
 exclude = ['BACKGROUND_Google', 'Motorbikes', 'airplanes', 'Faces_easy', 'Faces']
@@ -63,18 +70,72 @@ y_train = keras.utils.to_categorical(y_train, num_classes)
 y_val = keras.utils.to_categorical(y_val, num_classes)
 y_test = keras.utils.to_categorical(y_test, num_classes)
 
-
 # summary
 print("finished loading %d images from %d categories"%(len(data), num_classes))
 print("train / validation / test split: %d, %d, %d"%(len(x_train), len(x_val), len(x_test)))
 print("training data shape: ", x_train.shape)
 print("training labels shape: ", y_train.shape)
 
-# Let's quickly look at a few sample images from our dataset.
-images = [os.path.join(dp, f) for dp, dn, filenames in os.walk(root) for f in filenames if os.path.splitext(f)[1].lower() in ['.jpg','.png','.jpeg']]
-idx = [int(len(images) * random.random()) for i in range(8)]
-imgs = [image.load_img(images[i], target_size=(224, 224)) for i in idx]
-concat_image = np.concatenate([np.asarray(img) for img in imgs], axis=1)
-plt.figure(figsize=(16, 4))
-plt.imshow(concat_image)
+# build the network
+model = Sequential()
+model.add(Conv2D(32, (3, 3), input_shape=x_train.shape[1:]))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+model.add(Conv2D(32, (3, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+model.add(Dropout(0.25))
+
+model.add(Conv2D(32, (3, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+model.add(Conv2D(32, (3, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+model.add(Dropout(0.25))
+
+model.add(Flatten())
+model.add(Dense(256))
+model.add(Activation('relu'))
+
+model.add(Dropout(0.5))
+
+model.add(Dense(num_classes))
+model.add(Activation('softmax'))
+
+# compile the model to use categorical cross-entropy loss function and adam optimizer
+model.compile(loss='categorical_crossentropy',
+              optimizer='adam',
+              metrics=['accuracy'])
+
+history = model.fit(x_train, y_train,
+                    batch_size=128,
+                    epochs=10,
+                    validation_data=(x_val, y_val))
+
+# Plot the results
+fig = plt.figure(figsize=(16, 4))
+
+# Validation loss
+ax = fig.add_subplot(121)
+ax.plot(history.history["val_loss"])
+ax.set_title("Validation Loss")
+ax.set_xlabel("Epochs")
+
+# Validation accuracy
+ax2 = fig.add_subplot(122)
+ax2.plot(history.history["val_accuracy"])
+ax2.set_title("Validation Accuracy")
+ax2.set_xlabel("Epochs")
+ax2.set_ylim(0, 1)
+
 plt.show()
+
+# Evaluate on test set
+loss, accuracy = model.evaluate(x_test, y_test, verbose=0)
+print('Test loss:', loss)
+print('Test accuracy:', accuracy)
