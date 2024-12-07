@@ -1,16 +1,14 @@
-# File: transfer_learning_price_tag.py
-
 import os
 import random
 import numpy as np
-from keras.preprocessing.image import load_img, img_to_array
-from keras.applications.imagenet_utils import preprocess_input
-from keras.models import Model
-from keras.layers import Dense, Dropout, Flatten, GlobalAveragePooling2D
-from keras.applications import VGG16
-from keras.callbacks import ReduceLROnPlateau, EarlyStopping
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from keras.regularizers import l2
+from keras.preprocessing.image import load_img, img_to_array # type: ignore
+from keras.applications.imagenet_utils import preprocess_input # type: ignore
+from keras.models import Model # type: ignore
+from keras.layers import Dense, Dropout, Flatten, GlobalAveragePooling2D # type: ignore
+from keras.applications import VGG16 # type: ignore
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping # type: ignore
+from tensorflow.keras.preprocessing.image import ImageDataGenerator # type: ignore
+from keras.regularizers import l2 # type: ignore
 
 # Function to load and preprocess images
 def get_image(path):
