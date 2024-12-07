@@ -1,18 +1,21 @@
+# File: transfer_learning_price_tag.py
+
 import os
 import random
 import numpy as np
-import keras
-from keras.preprocessing import image # type: ignore
-from keras.applications.imagenet_utils import preprocess_input # type: ignore
-from keras.models import Model # type: ignore
-from keras.layers import Dense, Dropout, Flatten # type: ignore
-from keras.applications import VGG16 # type: ignore
-from tensorflow.keras.preprocessing.image import ImageDataGenerator # type: ignore
+from keras.preprocessing.image import load_img, img_to_array
+from keras.applications.imagenet_utils import preprocess_input
+from keras.models import Model
+from keras.layers import Dense, Dropout, Flatten, GlobalAveragePooling2D
+from keras.applications import VGG16
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from keras.regularizers import l2
 
 # Function to load and preprocess images
 def get_image(path):
-    img = image.load_img(path, target_size=(224, 224))
-    x = image.img_to_array(img)
+    img = load_img(path, target_size=(224, 224))
+    x = img_to_array(img)
     x = np.expand_dims(x, axis=0)
     x = preprocess_input(x)
     return img, x
@@ -62,38 +65,57 @@ print(f"x_train shape: {x_train.shape}, y_train shape: {y_train.shape}")
 print(f"x_val shape: {x_val.shape}, y_val shape: {y_val.shape}")
 print(f"x_test shape: {x_test.shape}, y_test shape: {y_test.shape}")
 
-# Data augmentation
-datagen = ImageDataGenerator(
+# Improved Data augmentation for training
+datagen_train = ImageDataGenerator(
     rotation_range=30,
     width_shift_range=0.2,
     height_shift_range=0.2,
     shear_range=0.2,
     zoom_range=0.2,
-    horizontal_flip=True,
-    fill_mode='nearest'
+    brightness_range=[0.8, 1.2],
+    fill_mode='nearest',
+    horizontal_flip=True
 )
+
+# Validation data generator
+datagen_val = ImageDataGenerator()
+
+# Prepare data generators
+train_gen = datagen_train.flow(x_train, y_train, batch_size=4)
+val_gen = datagen_val.flow(x_val, y_val, batch_size=4)
 
 # Build model using VGG16
 vgg = VGG16(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
-x = Flatten()(vgg.output)
-x = Dense(256, activation='relu')(x)
+x = GlobalAveragePooling2D()(vgg.output)
+x = Dense(128, activation='relu', kernel_regularizer=l2(0.01))(x)
 x = Dropout(0.5)(x)
-out = Dense(1, activation='sigmoid')(x)  # Binary classification (price tag or not)
+out = Dense(1, activation='sigmoid', kernel_regularizer=l2(0.01))(x)
 model_new = Model(inputs=vgg.input, outputs=out)
 
-# Freeze VGG layers
-for layer in vgg.layers:
+# Unfreeze the last few layers of VGG16 progressively
+for layer in vgg.layers[:-6]:
     layer.trainable = False
 
 # Compile model
-model_new.compile(loss='binary_crossentropy',
-                  optimizer='adam',
-                  metrics=['accuracy'])
+model_new.compile(
+    loss='binary_crossentropy',
+    optimizer='adam',
+    metrics=['accuracy']
+)
 
-# Train model
-model_new.fit(datagen.flow(x_train, y_train, batch_size=2),
-              epochs=10,
-              validation_data=(x_val, y_val))
+# Callbacks for better training
+callbacks = [
+    ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, verbose=1),
+    EarlyStopping(monitor='val_loss', patience=5, verbose=1, restore_best_weights=True)
+]
+
+# Train model using data generators
+model_new.fit(
+    train_gen,
+    epochs=50,  # More epochs for fine-tuning
+    validation_data=val_gen,
+    callbacks=callbacks
+)
 
 # Evaluate model
 loss, accuracy = model_new.evaluate(x_test, y_test)
@@ -101,12 +123,18 @@ print('Test loss:', loss)
 print('Test accuracy:', accuracy)
 
 # Predict on a new image with a price tag
-x_with_price = get_image('price_tag_test_image.jpeg')[1]
+def preprocess_single_image(image_path):
+    img = load_img(image_path, target_size=(224, 224))
+    x = img_to_array(img)
+    x = np.expand_dims(x, axis=0)
+    x = preprocess_input(x)
+    return x
+
+x_with_price = preprocess_single_image('price_tag_test_image.jpeg')
 probabilities_with_price = model_new.predict(x_with_price)
 print('Price tag image probabilities:', probabilities_with_price)
 
 # Predict on a new image without a price tag
-x_without_price = get_image('no_price_tag_test_image.jpeg')[1]
+x_without_price = preprocess_single_image('no_price_tag_test_image.jpeg')
 probabilities_without_price = model_new.predict(x_without_price)
 print('No price tag image probabilities:', probabilities_without_price)
-
