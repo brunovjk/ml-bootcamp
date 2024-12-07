@@ -100,7 +100,13 @@ loss, accuracy = model_new.evaluate(x_test, y_test)
 print('Test loss:', loss)
 print('Test accuracy:', accuracy)
 
-# Predict on a new image
-img, x = get_image('price_tag_test_image.jpeg')  # Update path if necessary
-probabilities = model_new.predict(x)
-print('Probabilities:', probabilities)
+# Predict on a new image with a price tag
+x_with_price = get_image('price_tag_test_image.jpeg')[1]
+probabilities_with_price = model_new.predict(x_with_price)
+print('Price tag image probabilities:', probabilities_with_price)
+
+# Predict on a new image without a price tag
+x_without_price = get_image('no_price_tag_test_image.jpeg')[1]
+probabilities_without_price = model_new.predict(x_without_price)
+print('No price tag image probabilities:', probabilities_without_price)
+
