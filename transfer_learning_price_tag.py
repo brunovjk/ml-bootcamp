@@ -1,61 +1,48 @@
 import os
-import random
 import numpy as np
-from keras.preprocessing.image import load_img, img_to_array  # type: ignore
-from keras.applications.imagenet_utils import preprocess_input  # type: ignore
-from keras.models import Model  # type: ignore
-from keras.layers import Dense, Dropout, Flatten, GlobalAveragePooling2D  # type: ignore
-from keras.applications import VGG16  # type: ignore
-from keras.callbacks import ReduceLROnPlateau, EarlyStopping  # type: ignore
-from keras.regularizers import l2  # type: ignore
+from tensorflow.keras.preprocessing.image import load_img, img_to_array # type: ignore
+from tensorflow.keras.applications.imagenet_utils import preprocess_input # type: ignore
+from tensorflow.keras.models import Model # type: ignore
+from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling2D # type: ignore
+from tensorflow.keras.applications import VGG16 # type: ignore
+from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping # type: ignore
+from tensorflow.keras.regularizers import l2 # type: ignore
+from sklearn.model_selection import train_test_split # type: ignore
 
-# Function to load and preprocess images
-def get_image(path):
-    img = load_img(path, target_size=(224, 224))
-    x = img_to_array(img)
-    x = np.expand_dims(x, axis=0)
-    x = preprocess_input(x)
-    return img, x
+# Paths to the dataset
+train_dir = 'price_tags_databse/train'
+val_dir = 'price_tags_databse/val'
+test_dir = 'price_tags_databse/test'
 
-# Dataset path
-root = 'price_tags'
+# Function to load images and labels
+def load_images_from_directory(directory, target_size=(224, 224)):
+    data = []
+    for filename in os.listdir(directory):
+        filepath = os.path.join(directory, filename)
+        if os.path.splitext(filename)[1].lower() in ['.jpg', '.png', '.jpeg']:
+            try:
+                img = load_img(filepath, target_size=target_size)
+                x = img_to_array(img)
+                x = preprocess_input(x)
+                data.append({'x': x, 'y': 1})  # Label is 1 for all price tag images
+            except Exception as e:
+                print(f"Error loading image {filepath}: {e}")
+    return data
 
-# Load all images as a single category
-images = [os.path.join(root, f) for f in os.listdir(root)
-          if os.path.splitext(f)[1].lower() in ['.jpg', '.png', '.jpeg']]
+# Load datasets
+train_data = load_images_from_directory(train_dir)
+val_data = load_images_from_directory(val_dir)
+test_data = load_images_from_directory(test_dir)
 
-# Ensure images were found
-if not images:
-    raise ValueError("No images found in the dataset. Check your `root` directory.")
+# Convert data to numpy arrays
+def prepare_data(data):
+    x = np.array([d['x'] for d in data]).astype('float32') / 255.  # Normalize images
+    y = np.array([d['y'] for d in data])  # Labels
+    return x, y
 
-# Create data and labels (all labels = 1 since it's a single category)
-data = []
-for img_path in images:
-    try:
-        img, x = get_image(img_path)
-        data.append({'x': np.array(x[0]), 'y': 1})  # Label as 1 (price tag present)
-    except Exception as e:
-        print(f"Error loading image {img_path}: {e}")
-
-# Shuffle and split data
-random.shuffle(data)
-train_split, val_split = 0.7, 0.15
-idx_val = int(train_split * len(data))
-idx_test = int((train_split + val_split) * len(data))
-
-train = data[:idx_val]
-val = data[idx_val:idx_test]
-test = data[idx_test:]
-
-# Separate features and labels
-x_train = np.array([t['x'] for t in train]).astype('float32') / 255.
-y_train = np.array([t['y'] for t in train])
-
-x_val = np.array([t['x'] for t in val]).astype('float32') / 255.
-y_val = np.array([t['y'] for t in val])
-
-x_test = np.array([t['x'] for t in test]).astype('float32') / 255.
-y_test = np.array([t['y'] for t in test])
+x_train, y_train = prepare_data(train_data)
+x_val, y_val = prepare_data(val_data)
+x_test, y_test = prepare_data(test_data)
 
 # Check dataset shapes
 print(f"x_train shape: {x_train.shape}, y_train shape: {y_train.shape}")
@@ -87,7 +74,7 @@ callbacks = [
     EarlyStopping(monitor='val_loss', patience=5, verbose=1, restore_best_weights=True)
 ]
 
-# Train model using data generators
+# Train model
 model_new.fit(
     x_train, y_train,
     epochs=50,
@@ -101,7 +88,7 @@ loss, accuracy = model_new.evaluate(x_test, y_test)
 print('Test loss:', loss)
 print('Test accuracy:', accuracy)
 
-# Predict on a new image with a price tag
+# Predict on a new image
 def preprocess_single_image(image_path):
     img = load_img(image_path, target_size=(224, 224))
     x = img_to_array(img)
@@ -113,7 +100,6 @@ x_with_price = preprocess_single_image('price_tag_test_image.jpeg')
 probabilities_with_price = model_new.predict(x_with_price)
 print('Price tag image probabilities:', probabilities_with_price)
 
-# Predict on a new image without a price tag
 x_without_price = preprocess_single_image('no_price_tag_test_image.jpeg')
 probabilities_without_price = model_new.predict(x_without_price)
 print('No price tag image probabilities:', probabilities_without_price)
