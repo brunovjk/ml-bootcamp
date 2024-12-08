@@ -1,14 +1,13 @@
 import os
 import random
 import numpy as np
-from keras.preprocessing.image import load_img, img_to_array # type: ignore
-from keras.applications.imagenet_utils import preprocess_input # type: ignore
-from keras.models import Model # type: ignore
-from keras.layers import Dense, Dropout, Flatten, GlobalAveragePooling2D # type: ignore
-from keras.applications import VGG16 # type: ignore
-from keras.callbacks import ReduceLROnPlateau, EarlyStopping # type: ignore
-from tensorflow.keras.preprocessing.image import ImageDataGenerator # type: ignore
-from keras.regularizers import l2 # type: ignore
+from keras.preprocessing.image import load_img, img_to_array  # type: ignore
+from keras.applications.imagenet_utils import preprocess_input  # type: ignore
+from keras.models import Model  # type: ignore
+from keras.layers import Dense, Dropout, Flatten, GlobalAveragePooling2D  # type: ignore
+from keras.applications import VGG16  # type: ignore
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping  # type: ignore
+from keras.regularizers import l2  # type: ignore
 
 # Function to load and preprocess images
 def get_image(path):
@@ -63,25 +62,6 @@ print(f"x_train shape: {x_train.shape}, y_train shape: {y_train.shape}")
 print(f"x_val shape: {x_val.shape}, y_val shape: {y_val.shape}")
 print(f"x_test shape: {x_test.shape}, y_test shape: {y_test.shape}")
 
-# Improved Data augmentation for training
-datagen_train = ImageDataGenerator(
-    rotation_range=30,
-    width_shift_range=0.2,
-    height_shift_range=0.2,
-    shear_range=0.2,
-    zoom_range=0.2,
-    brightness_range=[0.8, 1.2],
-    fill_mode='nearest',
-    horizontal_flip=True
-)
-
-# Validation data generator
-datagen_val = ImageDataGenerator()
-
-# Prepare data generators
-train_gen = datagen_train.flow(x_train, y_train, batch_size=4)
-val_gen = datagen_val.flow(x_val, y_val, batch_size=4)
-
 # Build model using VGG16
 vgg = VGG16(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
 x = GlobalAveragePooling2D()(vgg.output)
@@ -109,9 +89,10 @@ callbacks = [
 
 # Train model using data generators
 model_new.fit(
-    train_gen,
-    epochs=50,  # More epochs for fine-tuning
-    validation_data=val_gen,
+    x_train, y_train,
+    epochs=50,
+    batch_size=32,
+    validation_data=(x_val, y_val),
     callbacks=callbacks
 )
 
